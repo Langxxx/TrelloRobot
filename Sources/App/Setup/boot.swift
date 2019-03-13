@@ -7,7 +7,9 @@ public func boot(_ app: Application) throws {
     let apiKeyStorage = try app.make(APIKeyStorage.self)
     let conn = try app.requestPooledConnection(to: .mysql).wait()
 
-
+    #if !DEBUG
+    let log = app.make(Logger.self)
+    log.debug("prepare fetch data from Trello")
     // update Trello list
     let trelloParams = [
         "key": apiKeyStorage.trelloKey,
@@ -47,6 +49,7 @@ public func boot(_ app: Application) throws {
             .run()
             .flatMap(insert)
     }.wait()
+    #endif
 
     try app.releasePooledConnection(conn, to: .mysql)
 }
