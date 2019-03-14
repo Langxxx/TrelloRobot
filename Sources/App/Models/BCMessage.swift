@@ -45,21 +45,59 @@ struct BCResponseMessage: Decodable, RequestDecodable {
     let key: String
 }
 
-final class BCMessageFormState: MySQLStringModel, Migration {
-    var id: String?
-    private var stateValue: Int
+final class BCMessageFormState: MySQLModel {
+    var id: Int?
 
-    init(id: String, state: State) {
-        self.id = id
+    var messageKey: String
+    let userID: String
+    private var stateValue: Int
+    private var formString: String?
+
+    init(messageKey: String,
+         userID: String,
+         state: State,
+         form: FormResponse) throws {
+
+        self.messageKey = messageKey
+        self.userID = userID
         self.stateValue = state.rawValue
+
+        let formData = try JSONEncoder().encode(form)
+        formString = String(data: formData, encoding: .utf8)
     }
 
     var state: State {
         return State(rawValue: stateValue) ?? .unknown
     }
 
+    var form: FormResponse? {
+        guard let data = formString?.data(using: .utf8) else {
+            return nil
+        }
+        do {
+            let form = try JSONDecoder().decode(FormResponse.self, from: data)
+            return form
+        } catch {
+            return nil
+        }
+    }
+
     enum State: Int, Codable {
         case unknown = 0
         case initial = 1
+    }
+}
+
+extension BCMessageFormState: MySQLMigration {
+    static func prepare(on conn: MySQLConnection) -> Future<Void> {
+        return MySQLDatabase.create(BCMessageFormState.self, on: conn) { builder in
+            builder.field(for: \.id, isIdentifier: true)
+            builder.field(for: \.formString, type: .text)
+            builder.field(for: \.messageKey)
+            builder.field(for: \.userID)
+            builder.field(for: \.stateValue)
+
+            builder.unique(on: \.messageKey, \.userID)
+        }
     }
 }

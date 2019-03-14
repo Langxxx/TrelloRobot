@@ -7,7 +7,8 @@
 
 import Vapor
 
-struct FormResponse: Encodable {
+struct FormResponse: Codable, ResponseEncodable {
+
     private let version: String
     private let actions: [AnyEncodable]
 
@@ -22,21 +23,34 @@ struct FormResponse: Encodable {
         ])
 }
 
-private struct AnyEncodable: Encodable {
+private struct AnyEncodable: Codable {
     var _encodeFunc: (Encoder) throws -> Void
+    let codable: Codable
 
-    init(_ encodable: Encodable) {
+    init(_ codable: Codable) {
         func _encode(to encoder: Encoder) throws {
-            try encodable.encode(to: encoder)
+            try codable.encode(to: encoder)
         }
+        self.codable = codable
         self._encodeFunc = _encode
     }
     func encode(to encoder: Encoder) throws {
         try _encodeFunc(encoder)
     }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let typeString = try values.decode(String.self, forKey: CodingKeys.type)
+        let type = ActionType.init(rawValue: typeString) ?? .unknown
+        try self.init(type.classType.init(from: decoder))
+    }
 }
 
-protocol FormAction: Encodable {
+protocol FormAction: Codable {
     var type: ActionType { get }
 }
 
@@ -49,7 +63,7 @@ struct SectionAction: FormAction {
     }
 
 
-    fileprivate struct Text: Encodable {
+    fileprivate struct Text: Codable {
         let value: String
         let markdown: Bool?
     }
@@ -139,12 +153,12 @@ struct SubmitAction: FormAction {
         self.kind = kind
     }
 
-    enum Kind: String, Encodable {
+    enum Kind: String, Codable {
         case normal, primary, danger
     }
 }
 
-enum ActionType: String, Encodable {
+enum ActionType: String, Codable {
     // static
     case section
     case context
@@ -161,5 +175,20 @@ enum ActionType: String, Encodable {
     case submit
 
     case unknown
+
+    var classType: Codable.Type {
+        switch self {
+        case .section:
+            return SectionAction.self
+        case .input:
+            return InputAtion.self
+        case .select, .channelSelect, .memberSelect:
+            return SelectAction.self
+        case .submit:
+            return SubmitAction.self
+        default:
+            fatalError("TODO!!!")
+        }
+    }
 }
 

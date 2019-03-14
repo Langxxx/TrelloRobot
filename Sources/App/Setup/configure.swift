@@ -38,6 +38,10 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     migrations.add(model: BCMessageFormState.self, database: .mysql)
     services.register(migrations)
 
+    var commands = CommandConfig.default()
+    commands.useFluentCommands()
+    services.register(commands)
+
     // Configure 3rd party api
     guard let trelloKey = Environment.get("trello_key"),
         let trelloToken = Environment.get("trello_token") else {

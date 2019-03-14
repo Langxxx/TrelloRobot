@@ -15,6 +15,10 @@ extension Decodable where Self: RequestDecodable {
 }
 
 
-extension Encodable where Self: RequestEncodable {
-    
+extension Encodable where Self: ResponseEncodable {
+    func encode(for req: Request) throws -> Future<Response> {
+        let res = req.response()
+        try res.content.encode(json: self)
+        return Future.map(on: req) { res }
+    }
 }
