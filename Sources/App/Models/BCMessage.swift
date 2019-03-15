@@ -41,8 +41,15 @@ struct BCMessage: Encodable {
     }
 }
 
-struct BCResponseMessage: Decodable, RequestDecodable {
-    let key: String
+
+struct BCFormRequest: Decodable, RequestDecodable {
+    let messageKey: String
+    let userID: String
+
+    enum CodingKeys : String, CodingKey{
+        case messageKey = "message_key"
+        case userID = "user_id"
+    }
 }
 
 final class BCMessageFormState: MySQLModel {
@@ -67,24 +74,38 @@ final class BCMessageFormState: MySQLModel {
     }
 
     var state: State {
-        return State(rawValue: stateValue) ?? .unknown
+        get {
+            return State(rawValue: stateValue) ?? .unknown
+        }
+        set {
+            stateValue = newValue.rawValue
+        }
     }
 
     var form: FormResponse? {
-        guard let data = formString?.data(using: .utf8) else {
-            return nil
+        get {
+            guard let data = formString?.data(using: .utf8) else {
+                return nil
+            }
+            do {
+                let form = try JSONDecoder().decode(FormResponse.self, from: data)
+                return form
+            } catch {
+                return nil
+            }
         }
-        do {
-            let form = try JSONDecoder().decode(FormResponse.self, from: data)
-            return form
-        } catch {
-            return nil
+        set {
+            guard let formData = try? JSONEncoder().encode(newValue) else {
+                return
+            }
+            formString = String(data: formData, encoding: .utf8)
         }
     }
 
     enum State: Int, Codable {
         case unknown = 0
         case initial = 1
+        case cardCreating
     }
 }
 

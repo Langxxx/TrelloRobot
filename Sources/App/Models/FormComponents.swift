@@ -16,11 +16,6 @@ struct FormResponse: Codable, ResponseEncodable {
         self.version = version
         self.actions = action.map { AnyEncodable($0) }
     }
-
-    static let initial = FormResponse(
-        action: [
-            SubmitAction(name: "card.form", text: "创建一个Card")
-        ])
 }
 
 private struct AnyEncodable: Codable {
@@ -99,14 +94,14 @@ struct SelectAction: FormAction {
     let label: String?
     let placeholder: String?
     let multi: Bool
-    let options: [String]?
+    let options: [Option]?
 
     private init(type: ActionType,
                  name: String,
                  label: String? = nil,
                  placeholder: String?,
                  multi: Bool = false,
-                 options: [String]? = nil) {
+                 options: [Option]? = nil) {
         self.name = name
         self.label = label
         self.placeholder = placeholder
@@ -118,7 +113,7 @@ struct SelectAction: FormAction {
                        label: String? = nil,
                        placeholder: String?,
                        multi: Bool = false,
-                       options: [String]) -> SelectAction {
+                       options: [Option]) -> SelectAction {
         return SelectAction(
             type: .select,
             name: name,
@@ -139,6 +134,11 @@ struct SelectAction: FormAction {
             placeholder: placeholder,
             multi: multi)
     }
+
+    struct Option: Codable {
+        let text: String
+        let value: String
+    }
 }
 
 struct SubmitAction: FormAction {
@@ -156,6 +156,9 @@ struct SubmitAction: FormAction {
     enum Kind: String, Codable {
         case normal, primary, danger
     }
+
+
+    static let getCreateCardForm = "card.form"
 }
 
 enum ActionType: String, Codable {
