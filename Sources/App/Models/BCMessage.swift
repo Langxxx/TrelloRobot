@@ -106,6 +106,7 @@ final class BCMessageFormState: MySQLModel {
         case unknown = 0
         case initial = 1
         case cardCreating
+        case cardCreated
     }
 }
 

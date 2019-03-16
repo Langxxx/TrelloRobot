@@ -52,10 +52,7 @@ fileprivate extension TrelloFormController {
     func getInitialForm(_ req: Request) throws -> Future<FormResponse> {
         let logger = try req.make(Logger.self)
         let queryModel = try req.query.decode(BCFormRequest.self)
-        return BCMessageFormState.query(on: req)
-            .filter(\.messageKey == queryModel.messageKey)
-            .filter(\.userID == queryModel.userID)
-            .first()
+        return fetchMessageFormState(on: req, by: queryModel)
             .flatMap { cache -> Future<FormResponse> in
                 if let form = cache?.form {
                     logger.info("fetch cache....")
@@ -86,16 +83,13 @@ fileprivate extension TrelloFormController {
         case .fetchNewCardForm:
             return try getCreateCardForm(req, queryModel: queryModel)
         case .createCard:
-            fatalError("TODO")
+            return try createCard(req, queryModel: queryModel)
         }
     }
 
     private func getCreateCardForm(_ req: Request, queryModel: BCFormRequest) throws -> Future<FormResponse> {
         let logger = try req.make(Logger.self)
-        return BCMessageFormState.query(on: req)
-            .filter(\.messageKey == queryModel.messageKey)
-            .filter(\.userID == queryModel.userID)
-            .first()
+        return fetchMessageFormState(on: req, by: queryModel)
             .flatMap { cache -> Future<FormResponse> in
                 if cache?.state == .cardCreating,
                     let form = cache?.form {
@@ -107,20 +101,20 @@ fileprivate extension TrelloFormController {
                 let members = TrelloMember.query(on: req).all()
                 return flatMap(lists, members) { (lists, members) -> Future<FormResponse> in
                     let listSelect = SelectAction.custom(
-                        name: TrelloFormController.trelloListName,
+                        name: CreationCardRequestData.CodingKeys.idList.rawValue,
                         placeholder: "选择一个list",
                         options: lists.map { SelectAction.Option(text: $0.name, value: $0.id!) })
 
                     let nameInput = InputAtion(
-                        name: TrelloFormController.trelloLisCardtName,
+                        name: CreationCardRequestData.CodingKeys.name.rawValue,
                         placeholder: "任务名称")
 
                     let descInput = InputAtion(
-                        name: TrelloFormController.trelloListCardDesc,
+                        name: CreationCardRequestData.CodingKeys.desc.rawValue,
                         placeholder: "任务描述")
 
                     let assignSelect = SelectAction.custom(
-                        name: TrelloFormController.trelloListCardAssign,
+                        name: CreationCardRequestData.CodingKeys.idMembers.rawValue,
                         placeholder: "分配给谁",
                         options: members.map { SelectAction.Option(text: $0.username, value: $0.id!) })
 
@@ -146,6 +140,57 @@ fileprivate extension TrelloFormController {
                 }
             }
     }
+
+    private func createCard(_ req: Request, queryModel: BCFormRequest) throws -> Future<FormResponse> {
+        let logger = try req.make(Logger.self)
+        return fetchMessageFormState(on: req, by: queryModel)
+            .flatMap { cache -> Future<FormResponse> in
+                if cache?.state == .cardCreated,
+                    let form = cache?.form {
+                    logger.info("fetch cache...\(req.http.urlString)")
+                    return Future.map(on: req) { form }
+                }
+                let api = try req.make(APIKeyStorage.self)
+                let reqModel = try req.content.syncDecode(CreationCardRequestData.self)
+                reqModel.token = api.trelloToken
+                reqModel.key = api.trelloKey
+                return try req.client()
+                    .post("https://api.trello.com/1/cards") { request in
+                        try request.content.encode(json: reqModel)
+                    }.flatMap { response in
+                        let name = try response.content.syncGet(String.self, at: "name")
+                        let url = try response.content.syncGet(String.self, at: "shortUrl")
+
+                        let successSection = SectionAction(value: "创建任务[\(name)](\(url))成功", markdown: true)
+                        let newForm = FormResponse(action: [successSection])
+
+                        if let cache = cache {
+                            cache.form = newForm
+                            cache.state = .cardCreated
+                            return cache.save(on: req)
+                                .map { _ in newForm }
+                        } else {
+                            let new = try BCMessageFormState(
+                                messageKey: queryModel.messageKey,
+                                userID: queryModel.userID,
+                                state: .cardCreated,
+                                form: newForm)
+                            return new.create(on: req)
+                                .map { _ in newForm }
+                        }
+                    }
+            }
+    }
+}
+
+private extension TrelloFormController {
+    func fetchMessageFormState(on conn: DatabaseConnectable,
+                               by queryModel: BCFormRequest) -> Future<BCMessageFormState?> {
+        return BCMessageFormState.query(on: conn)
+            .filter(\.messageKey == queryModel.messageKey)
+            .filter(\.userID == queryModel.userID)
+            .first()
+    }
 }
 
 
@@ -159,9 +204,4 @@ fileprivate extension TrelloFormController {
         case fetchNewCardForm
         case createCard
     }
-
-    static let trelloListName = "trelloListName"
-    static let trelloLisCardtName = "trelloLisCardtName"
-    static let trelloListCardDesc = "trelloListCardDesc'"
-    static let trelloListCardAssign = "trelloListCardAssign"
 }
