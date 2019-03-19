@@ -9,24 +9,26 @@ import Vapor
 import FluentMySQL
 
 final class TrelloFormController: RouteCollection {
-
+    private let bcRootPath = "/bearychat"
+    private let formURLPath = "/list/select"
     func boot(router: Router) throws {
-        router.post(BCRequestMessage.self, at: "bearychat", use: newInitialForm)
-        router.get("/list/select", use: getInitialForm)
-        router.post("/list/select", use: actionCenter)
+        let routerWithMiddleware = router.grouped(TrelloAuthMiddleware())
+        routerWithMiddleware.post(BCRequestMessage.self, at: bcRootPath, use: newInitialForm)
+        routerWithMiddleware.get(formURLPath, use: getInitialForm)
+        routerWithMiddleware.post(formURLPath, use: actionCenter)
     }
-
 }
 
 fileprivate extension TrelloFormController {
     func newInitialForm(_ req: Request, message: BCRequestMessage) throws -> Future<HTTPStatus> {
         let logger = try req.make(Logger.self)
         let initialForm = TrelloFormController.initial
-        return try req.client().post("http://api.stage.bearychat.com/v1/message.create") { request in
+        return try req.client().post(Constants.bcCreateMessageURLString) { request in
             let msg = BCMessage(
-                msg: message,
+                token: message.token,
+                vchannelID: message.vchannel,
                 text: "创建一个任务",
-                formURL: "http://chaojidiao.stage.bearychat.com:8866/list/select",
+                formURL: Constants.baseFormURLString + "/list/select",
                 form: initialForm)
             try request.content.encode(json: msg)
             logger.debug("-----+\(request.http.body)")

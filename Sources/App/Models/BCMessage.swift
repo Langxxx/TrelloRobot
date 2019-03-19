@@ -32,9 +32,9 @@ struct BCMessage: Encodable {
         case token, text, form
     }
 
-    init(msg: BCRequestMessage, text: String, formURL: String, form: FormResponse?) {
-        self.token = msg.token
-        self.vchannelID = msg.vchannel
+    init(token: String, vchannelID: String, text: String, formURL: String, form: FormResponse?) {
+        self.token = token
+        self.vchannelID = vchannelID
         self.text = text
         self.formURL = formURL
         self.form = form
@@ -45,10 +45,14 @@ struct BCMessage: Encodable {
 struct BCFormRequest: Decodable, RequestDecodable {
     let messageKey: String
     let userID: String
+    let vchannelID: String
+    let token: String
 
     enum CodingKeys : String, CodingKey{
         case messageKey = "message_key"
         case userID = "user_id"
+        case vchannelID = "vchannel_id"
+        case token = "token"
     }
 }
 
@@ -63,11 +67,15 @@ final class BCMessageFormState: MySQLModel {
     init(messageKey: String,
          userID: String,
          state: State,
-         form: FormResponse) throws {
+         form: FormResponse?) throws {
 
         self.messageKey = messageKey
         self.userID = userID
         self.stateValue = state.rawValue
+
+        guard let form = form else {
+            return
+        }
 
         let formData = try JSONEncoder().encode(form)
         formString = String(data: formData, encoding: .utf8)
@@ -107,6 +115,10 @@ final class BCMessageFormState: MySQLModel {
         case initial = 1
         case cardCreating
         case cardCreated
+
+        case setupKey
+        case bindBoard
+        case authFinish
     }
 }
 

@@ -15,6 +15,7 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     var middlewares = MiddlewareConfig() // Create _empty_ middleware config
     // middlewares.use(FileMiddleware.self) // Serves files from `Public/` directory
     middlewares.use(ErrorMiddleware.self) // Catches errors and converts to HTTP response
+//    middlewares.use(TrelloAuthMiddleware())
     services.register(middlewares)
 
     // Configure a SQLite database
@@ -36,6 +37,7 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     migrations.add(model: TrelloList.self, database: .mysql)
     migrations.add(model: TrelloMember.self, database: .mysql)
     migrations.add(model: BCMessageFormState.self, database: .mysql)
+    migrations.add(model: TrelloAPIConfig.self, database: .mysql)
     services.register(migrations)
 
     var commands = CommandConfig.default()
