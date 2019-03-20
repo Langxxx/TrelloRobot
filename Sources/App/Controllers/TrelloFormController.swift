@@ -99,47 +99,62 @@ fileprivate extension TrelloFormController {
                     return Future.map(on: req) { form }
                 }
 
-                let lists = TrelloList.query(on: req).all()
-                let members = TrelloMember.query(on: req).all()
-                return flatMap(lists, members) { (lists, members) -> Future<FormResponse> in
-                    let listSelect = SelectAction.custom(
-                        name: CreationCardRequestData.CodingKeys.idList.rawValue,
-                        placeholder: "选择一个list",
-                        options: lists.map { SelectAction.Option(text: $0.name, value: $0.id!) })
+                return TrelloAPIConfig.query(on: req)
+                    .filter(\.robotToken == queryModel.token)
+                    .first()
+                    .flatMap { api -> Future<TrelloBoard?> in
+                        guard let api = api,
+                            let boardID = api.idBoard else {
+                            throw VaporError(identifier: "getCreateCardForm", reason: "miss api")
+                        }
 
-                    let nameInput = InputAtion(
-                        name: CreationCardRequestData.CodingKeys.name.rawValue,
-                        placeholder: "任务名称")
+                        return TrelloBoard.find(boardID, on: req)
+                    }.flatMap { board -> Future<FormResponse>  in
+                        guard let board = board else {
+                            throw VaporError(identifier: "getCreateCardForm", reason: "miss board")
+                        }
+                        let lists = try board.lists.query(on: req).all()
+                        let members = try board.members.query(on: req).all()
+                        return flatMap(lists, members) { (lists, members) -> Future<FormResponse> in
+                            let listSelect = SelectAction.custom(
+                                name: CreationCardRequestData.CodingKeys.idList.rawValue,
+                                placeholder: "选择一个list",
+                                options: lists.map { SelectAction.Option(text: $0.name, value: $0.id!) })
 
-                    let descInput = InputAtion(
-                        name: CreationCardRequestData.CodingKeys.desc.rawValue,
-                        placeholder: "任务描述")
+                            let nameInput = InputAtion(
+                                name: CreationCardRequestData.CodingKeys.name.rawValue,
+                                placeholder: "任务名称")
 
-                    let assignSelect = SelectAction.custom(
-                        name: CreationCardRequestData.CodingKeys.idMembers.rawValue,
-                        placeholder: "分配给谁",
-                        options: members.map { SelectAction.Option(text: $0.username, value: $0.id!) })
+                            let descInput = InputAtion(
+                                name: CreationCardRequestData.CodingKeys.desc.rawValue,
+                                placeholder: "任务描述")
 
-                    let createSubmit = SubmitAction(
-                        name: Action.createCard.rawValue,
-                        text: "创建任务")
+                            let assignSelect = SelectAction.custom(
+                                name: CreationCardRequestData.CodingKeys.idMembers.rawValue,
+                                placeholder: "分配给谁",
+                                options: members.map { SelectAction.Option(text: $0.username, value: $0.memberID) })
 
-                    let form = FormResponse(action: [listSelect, nameInput, descInput, assignSelect, createSubmit])
-                    if let cache = cache {
-                        cache.form = form
-                        cache.state = .cardCreating
-                        return cache.save(on: req)
-                            .map { _ in form }
-                    } else {
-                        let new = try BCMessageFormState(
-                            messageKey: queryModel.messageKey,
-                            userID: queryModel.userID,
-                            state: .cardCreating,
-                            form: form)
-                        return new.create(on: req)
-                            .map { _ in form }
+                            let createSubmit = SubmitAction(
+                                name: Action.createCard.rawValue,
+                                text: "创建任务")
+
+                            let form = FormResponse(action: [listSelect, nameInput, descInput, assignSelect, createSubmit])
+                            if let cache = cache {
+                                cache.form = form
+                                cache.state = .cardCreating
+                                return cache.save(on: req)
+                                    .map { _ in form }
+                            } else {
+                                let new = try BCMessageFormState(
+                                    messageKey: queryModel.messageKey,
+                                    userID: queryModel.userID,
+                                    state: .cardCreating,
+                                    form: form)
+                                return new.create(on: req)
+                                    .map { _ in form }
+                            }
+                        }
                     }
-                }
             }
     }
 

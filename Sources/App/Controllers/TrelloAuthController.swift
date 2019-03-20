@@ -154,13 +154,13 @@ extension TrelloAuthController {
                     .get("https://api.trello.com/1/members/me/boards") { request in
                         try request.query.encode(trelloParams)
                     }.flatMap { response in
-                        try response.content.decode([TrelloBoard].self)
+                        try response.content.decode([TrelloBoardResponseData].self)
                     }.flatMap { boards -> Future<FormResponse> in
                         let boardSelect = SelectAction.custom(
                             name: BindBoardRequestData.CodingKeys.boardID.rawValue,
                             label: "绑定一个Board",
                             placeholder: "绑定一个Board",
-                            options: boards.map { SelectAction.Option(text: $0.name, value: $0.id ) })
+                            options: boards.map { SelectAction.Option(text: $0.name, value: $0.id) })
                         let submitAction = SubmitAction(name: Action.bindBoard.rawValue, text: "完成")
                         let form = FormResponse(action: [boardSelect, submitAction])
                         if let cache = cache {
