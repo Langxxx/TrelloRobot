@@ -4,7 +4,6 @@ import FluentMySQL
 /// Called after your application has initialized.
 public func boot(_ app: Application) throws {
     let client = try app.client()
-    let apiKeyStorage = try app.make(APIKeyStorage.self)
     let conn = try app.requestPooledConnection(to: .mysql).wait()
 
     #if !DEBUG

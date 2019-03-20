@@ -44,12 +44,4 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
     commands.useFluentCommands()
     services.register(commands)
 
-    // Configure 3rd party api
-    guard let trelloKey = Environment.get("trello_key"),
-        let trelloToken = Environment.get("trello_token") else {
-        throw Abort(.internalServerError)
-    }
-    services.register { container -> APIKeyStorage in
-        return APIKeyStorage(trelloKey: trelloKey, trelloToken: trelloToken)
-    }
 }

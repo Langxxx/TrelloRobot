@@ -152,35 +152,43 @@ fileprivate extension TrelloFormController {
                     logger.info("fetch cache...\(req.http.urlString)")
                     return Future.map(on: req) { form }
                 }
-                let api = try req.make(APIKeyStorage.self)
-                let reqModel = try req.content.syncDecode(CreationCardRequestData.self)
-                reqModel.token = api.trelloToken
-                reqModel.key = api.trelloKey
-                return try req.client()
-                    .post("https://api.trello.com/1/cards") { request in
-                        try request.content.encode(json: reqModel)
-                    }.flatMap { response in
-                        let name = try response.content.syncGet(String.self, at: "name")
-                        let url = try response.content.syncGet(String.self, at: "shortUrl")
 
-                        let successSection = SectionAction(value: "创建任务[\(name)](\(url))成功", markdown: true)
-                        let newForm = FormResponse(action: [successSection])
-
-                        if let cache = cache {
-                            cache.form = newForm
-                            cache.state = .cardCreated
-                            return cache.save(on: req)
-                                .map { _ in newForm }
-                        } else {
-                            let new = try BCMessageFormState(
-                                messageKey: queryModel.messageKey,
-                                userID: queryModel.userID,
-                                state: .cardCreated,
-                                form: newForm)
-                            return new.create(on: req)
-                                .map { _ in newForm }
+                return TrelloAPIConfig.query(on: req)
+                    .filter(\.robotToken == queryModel.token)
+                    .first()
+                    .flatMap { api -> Future<FormResponse> in
+                        guard let api = api else {
+                            throw VaporError(identifier: "createCard", reason: "miss api")
                         }
-                    }
+                        let reqModel = try req.content.syncDecode(CreationCardRequestData.self)
+                        reqModel.token = api.token
+                        reqModel.key = api.key
+                        return try req.client()
+                            .post("https://api.trello.com/1/cards") { request in
+                                try request.content.encode(json: reqModel)
+                            }.flatMap { response in
+                                let name = try response.content.syncGet(String.self, at: "name")
+                                let url = try response.content.syncGet(String.self, at: "shortUrl")
+
+                                let successSection = SectionAction(value: "创建任务[\(name)](\(url))成功", markdown: true)
+                                let newForm = FormResponse(action: [successSection])
+
+                                if let cache = cache {
+                                    cache.form = newForm
+                                    cache.state = .cardCreated
+                                    return cache.save(on: req)
+                                        .map { _ in newForm }
+                                } else {
+                                    let new = try BCMessageFormState(
+                                        messageKey: queryModel.messageKey,
+                                        userID: queryModel.userID,
+                                        state: .cardCreated,
+                                        form: newForm)
+                                    return new.create(on: req)
+                                        .map { _ in newForm }
+                                }
+                        }
+                }
             }
     }
 }
