@@ -20,11 +20,11 @@ public func configure(_ config: inout Config, _ env: inout Environment, _ servic
 
     // Configure a SQLite database
     let mysqlCOnfig = MySQLDatabaseConfig(
-        hostname: "localhost",
-        port: 3306,
-        username: "root",
-        password: "11111111",
-        database: "trello")
+        hostname: Environment.get("mysql_host") ?? "localhost",
+        port: Environment.get("mysql_port").flatMap { Int($0) } ?? 3306,
+        username: Environment.get("mysql_username") ?? "root",
+        password: Environment.get("mysql_password") ?? "11111111",
+        database: Environment.get("mysql_database") ?? "trello")
     let mysql = MySQLDatabase(config: mysqlCOnfig)
 
     // Register the configured MySQL database to the database config.
