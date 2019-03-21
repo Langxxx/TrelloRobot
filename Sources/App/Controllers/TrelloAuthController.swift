@@ -103,8 +103,9 @@ extension TrelloAuthController {
 
         let tokenInput = InputAtion(name: "token", placeholder: "Trello Token")
         let keyInput = InputAtion(name: "key", placeholder: "Trello Key")
+        let infoSection = SectionAction(value: "[获取Key](https://trello.com/app-key)", markdown: true)
         let nextSubmit = SubmitAction(name: Action.setupKey.rawValue, text: "下一步")
-        let form = FormResponse(action: [tokenInput, keyInput, nextSubmit])
+        let form = FormResponse(action: [tokenInput, keyInput, infoSection, nextSubmit])
 
         return try req.client().post(Constants.bcCreateMessageURLString) { request in
             let msg = BCMessage(
